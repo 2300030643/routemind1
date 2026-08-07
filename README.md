@@ -68,3 +68,4 @@ Our verification suite (12 stops in Delhi NCR) yields:
 - **Re-planning Latency**: Re-plans solve in **< 15 milliseconds** (budget: 30 seconds).
 - **Compute Cost**: **₹0.02** per route computed using heuristics.
 "# routemind" 
+"# routemind1" 
