@@ -48,74 +48,102 @@ def generate_route_data(num_stops: int = 15) -> Dict[str, Any]:
     
     stops = {}
     
-    # Let's generate stops
-    for i in range(1, num_stops + 1):
-        stop_id = f"ST_{i:02d}"
-        
-        # Decide zone
-        if i % 3 == 0:
-            zone_id = "Z1"
-            # CP area coordinates
-            lat = DEPOT_LAT + 0.05 + local_random.uniform(-0.015, 0.015)
-            lng = DEPOT_LNG - 0.06 + local_random.uniform(-0.015, 0.015)
-        elif i % 3 == 1:
-            zone_id = "Z2"
-            # Saket area coordinates
-            lat = DEPOT_LAT + local_random.uniform(-0.015, 0.015)
-            lng = DEPOT_LNG - 0.07 + local_random.uniform(-0.015, 0.015)
-        else:
-            zone_id = "Z3"
-            # Dwarka / West Delhi coordinates
-            lat = DEPOT_LAT + 0.06 + local_random.uniform(-0.02, 0.02)
-            lng = DEPOT_LNG - 0.18 + local_random.uniform(-0.02, 0.02)
+    # Try loading from CSV first
+    import os
+    import csv
+    import json
+    
+    csv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "stops.csv")
+    if os.path.exists(csv_path):
+        try:
+            with open(csv_path, "r", encoding="utf8") as f:
+                reader = csv.DictReader(f)
+                count = 0
+                for row in reader:
+                    if count >= num_stops:
+                        break
+                    stop_id = row["stop_id"]
+                    stops[stop_id] = {
+                        "stop_id": stop_id,
+                        "lat": float(row["lat"]),
+                        "lng": float(row["lng"]),
+                        "zone_id": row["zone_id"],
+                        "zone_name": row["zone_name"],
+                        "time_window": {"start": row["time_window_start"], "end": row["time_window_end"]},
+                        "service_time": int(row["service_time"]),
+                        "packages": json.loads(row["packages"]),
+                        "cod_total": float(row["cod_total"])
+                    }
+                    count += 1
+        except Exception as e:
+            print("Error loading CSV dataset, falling back to generator:", e)
+            stops = {}
             
-        # Delivery Window SLA
-        # 1: Morning (09:00 - 13:00)
-        # 2: Afternoon (13:00 - 17:00)
-        # 3: Evening/All Day (09:00 - 19:00)
-        rand_window = local_random.choice([1, 2, 3])
-        if rand_window == 1:
-            time_window = {"start": "09:00:00", "end": "13:00:00"}
-        elif rand_window == 2:
-            time_window = {"start": "13:00:00", "end": "17:00:00"}
-        else:
-            time_window = {"start": "09:00:00", "end": "19:00:00"}
+    # Fallback to dynamic generator if CSV not present or failed to load
+    if not stops:
+        for i in range(1, num_stops + 1):
+            stop_id = f"ST_{i:02d}"
             
-        # Package manifests at this stop
-        num_packages = local_random.randint(1, 3)
-        packages = []
-        stop_cod_total = 0.0
-        
-        for p in range(num_packages):
-            p_id = f"PKG_{stop_id}_{p}"
-            weight = round(local_random.uniform(0.5, 10.0), 2)  # kg
-            volume = round(local_random.uniform(1000, 20000), 2)  # cm^3
+            # Decide zone
+            if i % 3 == 0:
+                zone_id = "Z1"
+                # CP area coordinates
+                lat = DEPOT_LAT + 0.05 + local_random.uniform(-0.015, 0.015)
+                lng = DEPOT_LNG - 0.06 + local_random.uniform(-0.015, 0.015)
+            elif i % 3 == 1:
+                zone_id = "Z2"
+                # Saket area coordinates
+                lat = DEPOT_LAT + local_random.uniform(-0.015, 0.015)
+                lng = DEPOT_LNG - 0.07 + local_random.uniform(-0.015, 0.015)
+            else:
+                zone_id = "Z3"
+                # Dwarka / West Delhi coordinates
+                lat = DEPOT_LAT + 0.06 + local_random.uniform(-0.02, 0.02)
+                lng = DEPOT_LNG - 0.18 + local_random.uniform(-0.02, 0.02)
+                
+            # Delivery Window SLA
+            rand_window = local_random.choice([1, 2, 3])
+            if rand_window == 1:
+                time_window = {"start": "09:00:00", "end": "13:00:00"}
+            elif rand_window == 2:
+                time_window = {"start": "13:00:00", "end": "17:00:00"}
+            else:
+                time_window = {"start": "09:00:00", "end": "19:00:00"}
+                
+            # Package manifests at this stop
+            num_packages = local_random.randint(1, 3)
+            packages = []
+            stop_cod_total = 0.0
             
-            # Cash on delivery distribution (40% probability for Z2 residential, 20% for others)
-            is_cod = local_random.random() < (0.4 if zone_id == "Z2" else 0.2)
-            payment_type = "COD" if is_cod else "PREPAID"
-            cod_amount = round(local_random.uniform(1000.0, 15000.0), 2) if is_cod else 0.0
-            stop_cod_total += cod_amount
-            
-            packages.append({
-                "package_id": p_id,
-                "weight": weight,
-                "volume": volume,
-                "payment_type": payment_type,
-                "cod_amount": cod_amount
-            })
-            
-        stops[stop_id] = {
-            "stop_id": stop_id,
-            "lat": lat,
-            "lng": lng,
-            "zone_id": zone_id,
-            "zone_name": zones[zone_id]["name"],
-            "time_window": time_window,
-            "service_time": local_random.randint(300, 600),  # 5-10 mins in seconds
-            "packages": packages,
-            "cod_total": stop_cod_total
-        }
+            for p in range(num_packages):
+                p_id = f"PKG_{stop_id}_{p}"
+                weight = round(local_random.uniform(0.5, 10.0), 2)  # kg
+                volume = round(local_random.uniform(1000, 20000), 2)  # cm^3
+                
+                is_cod = local_random.random() < (0.4 if zone_id == "Z2" else 0.2)
+                payment_type = "COD" if is_cod else "PREPAID"
+                cod_amount = round(local_random.uniform(1000.0, 15000.0), 2) if is_cod else 0.0
+                stop_cod_total += cod_amount
+                
+                packages.append({
+                    "package_id": p_id,
+                    "weight": weight,
+                    "volume": volume,
+                    "payment_type": payment_type,
+                    "cod_amount": cod_amount
+                })
+                
+            stops[stop_id] = {
+                "stop_id": stop_id,
+                "lat": lat,
+                "lng": lng,
+                "zone_id": zone_id,
+                "zone_name": zones[zone_id]["name"],
+                "time_window": time_window,
+                "service_time": local_random.randint(300, 600),
+                "packages": packages,
+                "cod_total": stop_cod_total
+            }
         
     # Generate static travel time matrix between all stops (including depot)
     locations = {"DEPOT": {"lat": DEPOT_LAT, "lng": DEPOT_LNG}}

@@ -123,7 +123,8 @@ def trigger_replan(req: ReplanRequest):
     return {
         "evaluation": result,
         "explanation": explanation,
-        "cost_per_compute_rupees": cost_per_compute
+        "cost_per_compute_rupees": cost_per_compute,
+        "updated_problem_data": current_data
     }
 
 @app.post("/api/evaluate")
