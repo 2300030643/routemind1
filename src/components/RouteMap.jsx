@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Navigation, RefreshCw, FileText } from 'lucide-react';
+import { Navigation, RefreshCw, FileText, Database, Trash2 } from 'lucide-react';
 
 export default function RouteMap({
   solvedRoute,
@@ -14,6 +14,8 @@ export default function RouteMap({
   vehicleBearing,
   isSolving,
   simulationLogs,
+  historyLogs,
+  onClearHistory,
   onMapClick
 }) {
   const mapContainerRef = useRef(null);
@@ -31,7 +33,7 @@ export default function RouteMap({
       }).setView([28.5204, 77.2818], 11);
 
       // CartoDB Voyager tiles
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      L.tileLayer('https://{sTemplate}https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
         maxZoom: 19
       }).addTo(mapRef.current);
 
@@ -55,7 +57,7 @@ export default function RouteMap({
         mapRef.current = null;
       }
     };
-  }, []); // Run once on mount
+  }, []);
 
   // 2. Draw Route layer whenever routing state updates
   useEffect(() => {
@@ -153,7 +155,7 @@ export default function RouteMap({
 
     const activeSegIdx = isAnimating ? driverCurrentIndex - 1 : driverCurrentIndex;
 
-    // 1. Traveled Completed Path (slate black)
+    // 1. Traveled Completed Path
     if (activeSegIdx > 0) {
       const completedCoords = seqCoords.slice(0, activeSegIdx + 1);
       L.polyline(completedCoords, {
@@ -165,7 +167,7 @@ export default function RouteMap({
       }).addTo(layerGroupRef.current);
     }
 
-    // 2. Active Leg (dashed blinking cyan)
+    // 2. Active Leg
     if (activeSegIdx >= 0 && activeSegIdx < seqCoords.length - 1) {
       const activeLegCoords = [seqCoords[activeSegIdx], seqCoords[activeSegIdx + 1]];
       L.polyline(activeLegCoords, {
@@ -178,7 +180,7 @@ export default function RouteMap({
       }).addTo(layerGroupRef.current);
     }
 
-    // 3. Future Path (indigo/pink)
+    // 3. Future Path
     if (activeSegIdx < seqCoords.length - 1) {
       const futureCoords = seqCoords.slice(activeSegIdx + 1);
       futureCoords.unshift(seqCoords[activeSegIdx + 1]);
@@ -226,34 +228,84 @@ export default function RouteMap({
         )}
       </div>
 
-      {/* SIMULATION TELEMETRY LOGS */}
-      {simulationLogs && (
-        <div style={{
-          display: 'flex', 
-          flexDirection: 'column', 
-          gap: '0.4rem', 
-          maxHeight: '120px', 
-          overflowY: 'auto', 
-          background: 'rgba(0,0,0,0.2)', 
-          padding: '0.6rem', 
-          borderRadius: '8px', 
-          border: '1px solid var(--border-color)', 
-          fontSize: '0.75rem',
-          marginTop: '0.75rem'
-        }}>
-          <div style={{ fontWeight: 700, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-            <FileText size={12} /> Activity Log (What happened):
+      {/* DUAL TELEMETRY & AUDIT VIEW */}
+      <div className="logs-dual-container">
+        
+        {/* Left: Activity Log */}
+        <div className="logs-pane">
+          <div className="pane-header">
+            <span className="pane-title"><FileText size={12} /> Activity Log (Live console)</span>
           </div>
-          {simulationLogs.slice().reverse().map((log, idx) => (
-            <div key={idx} style={{
-              color: log.includes('[SIM]') ? '#fbbf24' : log.includes('[Driver]') ? '#00d2ff' : '#94a3b8', 
-              fontStyle: log.includes('Offline') ? 'italic' : 'normal'
-            }}>
-              {log}
-            </div>
-          ))}
+          <div className="pane-body">
+            {simulationLogs && simulationLogs.slice().reverse().map((log, idx) => (
+              <div key={idx} style={{
+                color: log.includes('[SIM]') ? '#fbbf24' : log.includes('[Driver]') ? '#00d2ff' : '#94a3b8', 
+                fontStyle: log.includes('Offline') ? 'italic' : 'normal',
+                paddingBottom: '2px'
+              }}>
+                {log}
+              </div>
+            ))}
+          </div>
         </div>
-      )}
+
+        {/* Right: Persistent Audit DB Logs */}
+        <div className="logs-pane">
+          <div className="pane-header" style={{ justifyContent: 'space-between', display: 'flex', width: '100%' }}>
+            <span className="pane-title"><Database size={12} /> Audit History (JSON DB)</span>
+            {historyLogs && historyLogs.length > 0 && (
+              <button 
+                onClick={onClearHistory}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#f43f5e',
+                  cursor: 'pointer',
+                  fontSize: '9px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '2px',
+                  padding: 0
+                }}
+                title="Clear Database history"
+              >
+                <Trash2 size={10} /> Clear
+              </button>
+            )}
+          </div>
+          <div className="pane-body">
+            {historyLogs && historyLogs.length > 0 ? (
+              historyLogs.slice().reverse().map((item, idx) => {
+                const isFail = item.event_type === 'FAILED_DELIVERY';
+                return (
+                  <div key={idx} style={{ 
+                    borderBottom: '1px solid rgba(255,255,255,0.05)', 
+                    paddingBottom: '4px', 
+                    marginBottom: '4px',
+                    fontSize: '10px'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: isFail ? '#ef4444' : '#10b981' }}>
+                      <b>{isFail ? '❌ Bypassed Stop' : '📍 Added Stop'} {item.stop_id}</b>
+                      <span>{item.event_time}</span>
+                    </div>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '9px', lineHeight: '1.2' }}>{item.explanation}</div>
+                    <div style={{ display: 'flex', gap: '8px', color: '#00d2ff', fontSize: '9px', marginTop: '2px' }}>
+                      <span>Cost: {item.cost_change_rupees >= 0 ? `+₹${item.cost_change_rupees}` : `-₹${Math.abs(item.cost_change_rupees)}`}</span>
+                      <span>Dist: {item.distance_change_km >= 0 ? `+${item.distance_change_km}km` : `-${Math.abs(item.distance_change_km)}km`}</span>
+                      {item.violations_saved > 0 && <span style={{ color: '#10b981' }}>Saved: {item.violations_saved} rules</span>}
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div style={{ color: 'var(--text-muted)', fontSize: '11px', textAlign: 'center', marginTop: '1.5rem' }}>
+                No database records. Approve a route change to audit.
+              </div>
+            )}
+          </div>
+        </div>
+
+      </div>
     </div>
   );
 }

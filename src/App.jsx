@@ -43,6 +43,7 @@ export default function App() {
   const [dynamicPool, setDynamicPool] = useState([]);
   const [usedDynamicStops, setUsedDynamicStops] = useState([]);
   const [pendingReplan, setPendingReplan] = useState(null);
+  const [historyLogs, setHistoryLogs] = useState([]);
   const [simulationLogs, setSimulationLogs] = useState([
     "Operations initialized at 08:00 AM.",
     "Vehicles checked and loaded at Okhla Depot."
@@ -96,7 +97,28 @@ export default function App() {
   useEffect(() => {
     fetchRouteData();
     fetchDynamicPool();
+    fetchHistoryLogs();
   }, []);
+
+  const fetchHistoryLogs = async () => {
+    try {
+      const res = await fetch('http://127.0.0.1:5000/api/history');
+      const data = await res.json();
+      setHistoryLogs(data);
+    } catch (err) {
+      console.error("Error loading audit history logs:", err);
+    }
+  };
+
+  const handleClearHistory = async () => {
+    try {
+      await fetch('http://127.0.0.1:5000/api/history/clear', { method: 'POST' });
+      fetchHistoryLogs();
+      setSimulationLogs(prev => [...prev, "[Supervisor] Flushed persistent audit database history."]);
+    } catch (err) {
+      console.error("Error flushing history database:", err);
+    }
+  };
 
   const fetchRouteData = async (numStops = 15) => {
     try {
@@ -370,8 +392,36 @@ export default function App() {
     setIsSolving(false);
   };
 
-  const approveReplan = () => {
+  const approveReplan = async () => {
     if (!pendingReplan) return;
+    
+    // Save to local database
+    try {
+      const oldVio = (solvedRoute?.sla_violations || 0) + (solvedRoute?.cod_violations || 0) + (solvedRoute?.curfew_violations || 0);
+      const newVio = (pendingReplan.evaluation?.sla_violations || 0) + (pendingReplan.evaluation?.cod_violations || 0) + (pendingReplan.evaluation?.curfew_violations || 0);
+      const violationsSaved = oldVio - newVio;
+      
+      const costChange = (pendingReplan.evaluation?.cost_rupees || 0) - (solvedRoute?.cost_rupees || 0);
+      const distanceChange = (pendingReplan.evaluation?.total_distance_km || 0) - (solvedRoute?.total_distance_km || 0);
+      
+      await fetch('http://127.0.0.1:5000/api/history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event_type: pendingReplan.event_type,
+          event_time: new Date().toLocaleTimeString(),
+          stop_id: pendingReplan.event_data.stop_id,
+          explanation: pendingReplan.explanation,
+          cost_change_rupees: parseFloat(costChange.toFixed(2)),
+          distance_change_km: parseFloat(distanceChange.toFixed(2)),
+          violations_saved: violationsSaved > 0 ? violationsSaved : 0
+        })
+      });
+      fetchHistoryLogs();
+    } catch (e) {
+      console.error("Error saving approved replan to database:", e);
+    }
+
     let updatedRouteData = routeData;
     if (pendingReplan.updatedProblemData) {
       updatedRouteData = pendingReplan.updatedProblemData;
@@ -549,18 +599,24 @@ export default function App() {
   };
 
   // 9. Add Custom Stop via Map Click Coordinates
-  const handleAddCustomStop = async () => {
+  const handleAddCustomStop = async (codAmount, timeWindow, zoneId) => {
     if (!clickedCoords) return;
     
     const customStopId = `ST_MAP_${Math.floor(Math.random() * 900) + 100}`;
-    const [start, end] = customStopWindow.split('-');
+    const [start, end] = timeWindow.split('-');
+    
+    const zoneNames = {
+      "Z1": "Connaught Place (Commercial Curfew Zone)",
+      "Z2": "Saket / South Delhi (Residential Zone)",
+      "Z3": "Dwarka / West Delhi (Suburban)"
+    };
     
     const newStop = {
       stop_id: customStopId,
       lat: clickedCoords.lat,
       lng: clickedCoords.lng,
-      zone_id: "Z3",
-      zone_name: "Custom Map Waypoint",
+      zone_id: zoneId,
+      zone_name: zoneNames[zoneId] || "Custom Map Waypoint",
       time_window: { start, end },
       service_time: 450,
       type: "DELIVERY",
@@ -568,10 +624,10 @@ export default function App() {
         package_id: `PKG_${customStopId}_0`,
         weight: 3.0,
         volume: 6000,
-        payment_type: parseFloat(customStopCOD) > 0 ? "COD" : "PREPAID",
-        cod_amount: parseFloat(customStopCOD) || 0.0
+        payment_type: codAmount > 0 ? "COD" : "PREPAID",
+        cod_amount: codAmount
       }],
-      cod_total: parseFloat(customStopCOD) || 0.0
+      cod_total: codAmount
     };
     
     setIsSolving(true);
@@ -592,7 +648,7 @@ export default function App() {
         event_type: 'NEW_PICKUP',
         event_data: newStop,
         evaluation: result.evaluation,
-        explanation: `Added new custom stop ${customStopId} via map click at Lat: ${clickedCoords.lat.toFixed(4)}, Lng: ${clickedCoords.lng.toFixed(4)}. Cash: ₹${parseFloat(customStopCOD).toLocaleString()} | SLA: ${customStopWindow}.`,
+        explanation: `Added new custom stop ${customStopId} via map click at Lat: ${clickedCoords.lat.toFixed(4)}, Lng: ${clickedCoords.lng.toFixed(4)}. Cash: ₹${codAmount.toLocaleString()} | SLA: ${timeWindow}.`,
         cost: result.cost_per_compute_rupees,
         updatedProblemData: result.updated_problem_data
       });
@@ -645,6 +701,17 @@ export default function App() {
 
   return (
     <div className="app-container">
+      {/* GLASSMORPHIC LOADER OVERLAY */}
+      {isSolving && (
+        <div className="glass-loader-overlay">
+          <div className="glass-loader-card">
+            <div className="spinner-glow"></div>
+            <div style={{ fontWeight: 800, fontSize: '1.1rem', color: '#fff' }}>RouteMind Optimizer</div>
+            <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Re-calculating travel paths & safety regulations...</div>
+          </div>
+        </div>
+      )}
+
       {/* HEADER SECTION */}
       <Header 
         apiCostLog={apiCostLog}
@@ -711,6 +778,8 @@ export default function App() {
           vehicleBearing={vehicleBearing}
           isSolving={isSolving}
           simulationLogs={simulationLogs}
+          historyLogs={historyLogs}
+          onClearHistory={handleClearHistory}
           onMapClick={(lat, lng) => {
             setClickedCoords({ lat, lng });
             setShowAddStopModal(true);

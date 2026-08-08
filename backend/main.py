@@ -17,6 +17,25 @@ from backend.solvers import (
     replan_route,
     evaluate_route
 )
+import json
+
+DB_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "db.json")
+
+def load_db():
+    if not os.path.exists(DB_FILE):
+        return {"history": []}
+    try:
+        with open(DB_FILE, "r", encoding="utf8") as f:
+            return json.load(f)
+    except Exception:
+        return {"history": []}
+
+def save_db(data):
+    try:
+        with open(DB_FILE, "w", encoding="utf8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        print("Error saving to db.json:", e)
 
 app = FastAPI(title="RouteMind Backend API")
 
@@ -28,6 +47,33 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+class HistoryItem(BaseModel):
+    event_type: str
+    event_time: str
+    stop_id: str
+    explanation: str
+    cost_change_rupees: float
+    distance_change_km: float
+    violations_saved: int
+
+@app.get("/api/history")
+def get_history():
+    db = load_db()
+    return db.get("history", [])
+
+@app.post("/api/history")
+def add_history_item(item: HistoryItem):
+    db = load_db()
+    db["history"].append(item.dict())
+    save_db(db)
+    return {"status": "success", "count": len(db["history"])}
+
+@app.post("/api/history/clear")
+def clear_history():
+    db = {"history": []}
+    save_db(db)
+    return {"status": "success"}
 
 # Global in-memory storage for active demo route data
 current_data = generate_route_data(num_stops=15)
