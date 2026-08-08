@@ -33,7 +33,7 @@ export default function RouteMap({
       }).setView([28.5204, 77.2818], 11);
 
       // CartoDB Voyager tiles
-      L.tileLayer('https://{sTemplate}https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
         maxZoom: 19
       }).addTo(mapRef.current);
 
@@ -195,12 +195,23 @@ export default function RouteMap({
       }).addTo(layerGroupRef.current);
     }
 
-    // Fit map bounds
-    try {
-      const bounds = L.latLngBounds(latlngs);
-      mapRef.current.fitBounds(bounds, { padding: [50, 50] });
-    } catch (e) {
-      console.warn("Could not fit map bounds:", e);
+    // Fit map bounds to show the entire route on initial load/reset, otherwise pan to active stop
+    if (driverCurrentIndex === 0 && !isAnimating) {
+      try {
+        const bounds = L.latLngBounds(latlngs);
+        mapRef.current.fitBounds(bounds, { padding: [50, 50] });
+      } catch (e) {
+        console.warn("Could not fit map bounds:", e);
+      }
+    } else {
+      try {
+        if (driverCurrentIndex >= 0 && driverCurrentIndex < seqCoords.length) {
+          const activeLoc = seqCoords[driverCurrentIndex];
+          mapRef.current.panTo(activeLoc, { animate: true });
+        }
+      } catch (e) {
+        console.warn("Could not pan map to active stop:", e);
+      }
     }
 
   }, [solvedRoute, routeData, activeSolver, driverCurrentIndex, driverCompletedStops, isAnimating, vehicleCoords, vehicleBearing]);

@@ -221,10 +221,7 @@ export default function App() {
     const startLoc = seqCoords[prevIdx];
     const endLoc = seqCoords[nextIdx];
     
-    // Pan map view to center on the target destination stop at the start of transit
-    if (mapRef.current) {
-      mapRef.current.panTo(endLoc, { animate: true });
-    }
+
     
     // Calculate heading angle
     const bearing = calculateBearing(startLoc[0], startLoc[1], endLoc[0], endLoc[1]);
@@ -524,16 +521,8 @@ export default function App() {
           
           // Pan map to center on the target destination stop immediately
           const nextStopInfo = routeData.stops[nextStop.stop_id];
-          if (nextStopInfo && mapRef.current) {
-            mapRef.current.panTo([nextStopInfo.lat, nextStopInfo.lng], { animate: true });
-          }
         } else {
           headingText = "returning to Okhla Depot (shift complete)";
-          
-          // Pan back to depot
-          if (mapRef.current) {
-            mapRef.current.panTo([routeData.depot.lat, routeData.depot.lng], { animate: true });
-          }
         }
         
         const outcomeMsg = status === 'DELIVERED' 
