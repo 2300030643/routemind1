@@ -959,3 +959,18 @@ div[style*="fixed"][style*="zIndex: 9999"] > div {
   }
 }
 
+/* Select Option Visibility Fixes for Dark Mode */
+select, input, option {
+  color-scheme: dark;
+}
+
+select {
+  background-color: #1f2937 !important;
+  color: #ffffff !important;
+}
+
+select option {
+  background-color: #111827 !important;
+  color: #ffffff !important;
+}
+
