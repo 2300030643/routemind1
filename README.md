@@ -4,10 +4,6 @@ RouteMind is an intelligent logistics planning and real-time route optimization 
 
 ---
 
-## 🚀 Hackathon Progress
-*   **✅ Stage 1 — Core Routing & Map Visualizer**: Completed
-*   **🚀 Stage 2 — Modular Component Architecture, CSV Dataset Support, Persisted History Audit Database, Input Validations & Dynamic Nearest Zone Suggestions**: Enhanced and Fully Implemented
-*   **🔮 Stage 3 — ML-Based Dynamic Traffic Matrix & Multi-Vehicle Fleets**: Future Scope
 
 ---
 
@@ -194,7 +190,3 @@ npm run dev
 
 ---
 
-## 🔮 Future Scope (Stage 3)
-1.  **Multi-Vehicle Fleets**: Extend the solver heuristic to partition stops across a fleet of delivery vans.
-2.  **Live Traffic Matrix API Integration**: Dynamically query TomTom or MapMyIndia routing APIs to fetch live congestion coefficients.
-3.  **Predictive Curfew Violations**: Train a time-series model on past route durations to predict curfew breaches before the truck leaves the warehouse.

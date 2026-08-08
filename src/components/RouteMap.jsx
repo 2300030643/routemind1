@@ -32,8 +32,8 @@ export default function RouteMap({
         attributionControl: false
       }).setView([28.5204, 77.2818], 11);
 
-      // CartoDB Voyager tiles
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      // CartoDB Dark Matter tiles for a professional dark telemetry dashboard look
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         maxZoom: 19
       }).addTo(mapRef.current);
 
